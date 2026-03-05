@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RPM Newsletter Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:      #1a3a5c;
+    --blue:      #2e75b6;
+    --blue-lt:   #d6e8f7;
+    --ink:       #1c1c1e;
+    --muted:     #6b7280;
+    --border:    #e4e7ec;
+    --bg:        #f5f7fa;
+    --panel:     #ffffff;
+    --accent:    #2e75b6;
+    --success:   #16a34a;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--navy);
+    color: white;
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .topbar-title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    opacity: .95;
+  }
+  .topbar-sub {
+    font-size: 12px;
+    opacity: .5;
+    margin-left: 10px;
+    font-weight: 300;
+  }
+  .copy-btn {
+    background: var(--blue);
+    color: white;
+    border: none;
+    padding: 7px 18px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+  }
+  .copy-btn:hover { background: #2566a0; }
+  .copy-btn:active { transform: scale(.97); }
+  .copy-btn.copied { background: var(--success); }
+
+  .img-btn {
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255,255,255,.35);
+    padding: 7px 18px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+    margin-right: 8px;
+  }
+  .img-btn:hover { background: rgba(255,255,255,.1); }
+  .img-btn:active { transform: scale(.97); }
+  .img-btn.working { opacity: .6; cursor: wait; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: #f9fafb;
+  }
+  .toggle-row input[type="checkbox"] {
+    width: 16px; height: 16px;
+    accent-color: var(--blue);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .toggle-row span {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  /* ── Layout ── */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Left panel ── */
+  .editor-panel {
+    width: 380px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 0 0 40px 0;
+  }
+
+  .section-block {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+  }
+  .section-block:last-child { border-bottom: none; }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--blue-lt);
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 5px;
+    margin-top: 12px;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  input[type="text"], textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    background: #fafafa;
+    transition: border .15s, box-shadow .15s;
+    resize: vertical;
+  }
+  input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(46,117,182,.1);
+    background: white;
+  }
+  textarea { min-height: 72px; line-height: 1.5; }
+
+  /* ── Repeating items ── */
+  .items-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .item-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fafbfc;
+    position: relative;
+  }
+  .item-card label { margin-top: 8px; }
+  .item-card label:first-of-type { margin-top: 0; }
+
+  .remove-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #ccc;
+    font-size: 16px;
+    line-height: 1;
+    transition: color .15s;
+    padding: 2px 4px;
+  }
+  .remove-btn:hover { color: #e05555; }
+
+  .add-btn {
+    margin-top: 10px;
+    width: 100%;
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .add-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* ── Right panel ── */
+  .preview-panel {
+    flex: 1;
+    overflow-y: auto;
+    background: #e8ecf0;
+    padding: 32px;
+  }
+
+  #preview-frame {
+    max-width: 640px;
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 4px 32px rgba(0,0,0,.12);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  /* ── Preview newsletter styles ── */
+  .nl-header   { background: #1a3a5c; padding: 36px 40px 28px; }
+  .nl-hdr-tag  { font-family: Arial, sans-serif; font-size: 11px; color: #7aaedb; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+  .nl-hdr-title{ font-family: Arial, sans-serif; font-size: 26px; font-weight: bold; color: #ffffff; line-height: 1.2; margin-bottom: 6px; }
+  .nl-hdr-sub  { font-family: Arial, sans-serif; font-size: 15px; color: #a8cce8; }
+  .nl-intro    { padding: 28px 40px 0; font-family: Georgia, serif; font-size: 15px; line-height: 1.7; color: #333; }
+  .nl-divider  { margin: 24px 40px 0; border-top: 1px solid #e2e8f0; }
+  .nl-section  { padding: 24px 40px 0; }
+  .nl-label    { font-family: Arial, sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: bold; color: #1a3a5c; margin-bottom: 14px; }
+  .nl-celeb    { background: #f0f7ff; border-left: 3px solid #2e75b6; padding: 11px 15px; margin-bottom: 7px; font-family: Arial, sans-serif; font-size: 14px; }
+  .nl-celeb-name { font-weight: bold; color: #1a3a5c; }
+  .nl-celeb-text { color: #333; }
+  .nl-proj-title { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; color: #1a3a5c; margin-bottom: 3px; margin-top: 14px; }
+  .nl-proj-text  { font-family: Georgia, serif; font-size: 14px; color: #555; line-height: 1.6; }
+  .nl-two-col  { padding: 24px 40px 0; display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0 20px; }
+  .nl-col-div  { background: #e2e8f0; }
+  .nl-col-label{ font-family: Arial, sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: bold; color: #1a3a5c; margin-bottom: 10px; }
+  .nl-col-item { font-family: Arial, sans-serif; font-size: 13px; color: #444; line-height: 1.6; margin-bottom: 7px; }
+  .nl-inspo-box{ margin: 0 40px; border: 1px solid #f0e0a0; background: #fffbf0; padding: 16px 20px; font-family: Georgia, serif; font-size: 14px; color: #333; line-height: 1.7; }
+  .nl-meeting  { margin: 24px 40px 0; background: #1a3a5c; padding: 16px 24px; }
+  .nl-mtg-label{ font-family: Arial, sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: bold; color: #7aaedb; margin-bottom: 8px; }
+  .nl-mtg-date { font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+  .nl-mtg-loc  { font-family: Arial, sans-serif; font-size: 13px; color: #a8cce8; margin-bottom: 8px; }
+  .nl-mtg-agenda{ font-family: Arial, sans-serif; font-size: 13px; color: #d0e8ff; line-height: 1.6; }
+  .nl-footer   { margin-top: 24px; padding: 14px 40px; background: #f7f9fc; border-top: 1px solid #e2e8f0; text-align: center; font-family: Arial, sans-serif; font-size: 11px; color: #999; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="topbar-title">RPM Newsletter Editor</span>
+    <span class="topbar-sub">Fill in the form · preview updates live · copy and paste into Outlook</span>
+  </div>
+  <div>
+    <button class="img-btn" onclick="exportImage()">⬇ Save as image</button>
+    <button class="copy-btn" onclick="copyNewsletter()">Copy newsletter</button>
+  </div>
+</div>
+
+<div class="workspace">
+
+  <!-- ═══ LEFT: FORM ═══ -->
+  <div class="editor-panel">
+
+    <!-- Header toggle -->
+    <div class="toggle-row">
+      <input type="checkbox" id="show-header" onchange="update()">
+      <span>Include header block (title + taglines)</span>
+    </div>
+
+    <!-- Image width -->
+    <div class="toggle-row">
+      <span>Image export width (px)</span>
+      <input type="text" id="export-width" value="1200" style="width:80px; margin-left:auto; text-align:center;">
+    </div>
+
+    <!-- Meta -->
+    <div class="section-block">
+      <div class="section-label">📅 Issue</div>
+      <label>Month & Year</label>
+      <input type="text" id="f-month" value="June 2025" oninput="update()">
+    </div>
+
+    <!-- Intro -->
+    <div class="section-block">
+      <div class="section-label">✏️ Intro</div>
+      <label>Opening paragraph</label>
+      <textarea id="f-intro" oninput="update()">June has been a busy month across the community — two studies moving into recruitment, a grant submission in the works, and a lively discussion at last week's meeting about how we align our work toward shared goals. Read on for the full picture, and don't hesitate to reach out if something here sparks a collaboration.</textarea>
+    </div>
+
+    <!-- Celebrations -->
+    <div class="section-block">
+      <div class="section-label">🎉 Celebrations</div>
+      <div class="items-list" id="celebrations-list"></div>
+      <button class="add-btn" onclick="addItem('celebrations-list', celebTemplate)">+ Add celebration</button>
+    </div>
+
+    <!-- Projects -->
+    <div class="section-block">
+      <div class="section-label">📋 Project Updates</div>
+      <div class="items-list" id="projects-list"></div>
+      <button class="add-btn" onclick="addItem('projects-list', projectTemplate)">+ Add project</button>
+    </div>
+
+    <!-- Grants -->
+    <div class="section-block">
+      <div class="section-label">💰 Grant Corner</div>
+      <div class="items-list" id="grants-list"></div>
+      <button class="add-btn" onclick="addItem('grants-list', textTemplate)">+ Add item</button>
+    </div>
+
+    <!-- Help -->
+    <div class="section-block">
+      <div class="section-label">🤝 Looking for Help</div>
+      <div class="items-list" id="help-list"></div>
+      <button class="add-btn" onclick="addItem('help-list', textTemplate)">+ Add item</button>
+    </div>
+
+    <!-- Inspiration -->
+    <div class="section-block">
+      <div class="section-label">💡 Inspiration Drop</div>
+      <label>Paper, finding, or interesting thing</label>
+      <textarea id="f-inspiration" rows="4" oninput="update()">This month: Patel et al. (2024), "Alert fatigue in remote cardiac monitoring: a qualitative study of nurse experiences" — a sharp reminder that the design problem is not just on the patient side. Worth a read before the next co-design session.</textarea>
+    </div>
+
+    <!-- Next meeting -->
+    <div class="section-block">
+      <div class="section-label">📅 Next Meeting</div>
+      <label>Date & time</label>
+      <input type="text" id="f-date" value="Thursday 3 July · 14:00 – 15:00" oninput="update()">
+      <label>Location / link</label>
+      <input type="text" id="f-location" value="Building ID, Room 1.24 · Teams link in calendar invite" oninput="update()">
+      <label>Agenda teaser</label>
+      <textarea id="f-agenda" oninput="update()">Main discussion: how do we build a shared project overview? Bring a one-sentence description of your current work. We will also do a quick poll on discussion topics for Q3.</textarea>
+    </div>
+
+  </div>
+
+  <!-- ═══ RIGHT: PREVIEW ═══ -->
+  <div class="preview-panel">
+    <div id="preview-frame"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Item templates ─────────────────────────────────────────────────────────
+
+function celebTemplate(id) {
+  return `<div class="item-card" id="${id}">
+    <button class="remove-btn" onclick="removeItem('${id}')">×</button>
+    <label>Name</label>
+    <input type="text" placeholder="e.g. Sofia Martens" oninput="update()">
+    <label>What happened</label>
+    <textarea placeholder="Paper accepted, grant received, defence passed…" oninput="update()"></textarea>
+  </div>`;
+}
+
+function projectTemplate(id) {
+  return `<div class="item-card" id="${id}">
+    <button class="remove-btn" onclick="removeItem('${id}')">×</button>
+    <label>Project name</label>
+    <input type="text" placeholder="e.g. HeartSense — Patient Study" oninput="update()">
+    <label>Update</label>
+    <textarea placeholder="What is new? What is next? (2–3 sentences)" oninput="update()"></textarea>
+  </div>`;
+}
+
+function textTemplate(id) {
+  return `<div class="item-card" id="${id}">
+    <button class="remove-btn" onclick="removeItem('${id}')">×</button>
+    <textarea placeholder="Add item…" oninput="update()"></textarea>
+  </div>`;
+}
+
+// ── Item management ────────────────────────────────────────────────────────
+
+var counters = {};
+function addItem(listId, templateFn, name, text) {
+  counters[listId] = (counters[listId] || 0) + 1;
+  var id = listId + '-' + counters[listId];
+  var list = document.getElementById(listId);
+  var div = document.createElement('div');
+  div.innerHTML = templateFn(id);
+  var card = div.firstChild;
+  list.appendChild(card);
+  if (name !== undefined) {
+    var inputs = card.querySelectorAll('input[type="text"]');
+    var textareas = card.querySelectorAll('textarea');
+    if (inputs.length) inputs[0].value = name;
+    if (textareas.length) textareas[0].value = text || '';
+    if (inputs.length === 0 && textareas.length) textareas[0].value = name;
+  }
+  update();
+}
+
+function removeItem(id) {
+  var el = document.getElementById(id);
+  if (el) { el.remove(); update(); }
+}
+
+function getItems(listId) {
+  var list = document.getElementById(listId);
+  var cards = list.querySelectorAll('.item-card');
+  var items = [];
+  cards.forEach(function(card) {
+    var inputs = card.querySelectorAll('input[type="text"]');
+    var textareas = card.querySelectorAll('textarea');
+    if (inputs.length > 0) {
+      items.push({ name: inputs[0].value, text: textareas[0] ? textareas[0].value : '' });
+    } else {
+      items.push({ text: textareas[0] ? textareas[0].value : '' });
+    }
+  });
+  return items;
+}
+
+// ── Escape HTML ────────────────────────────────────────────────────────────
+function esc(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Build preview HTML ─────────────────────────────────────────────────────
+function buildPreview() {
+  var month      = document.getElementById('f-month').value;
+  var intro      = esc(document.getElementById('f-intro').value);
+  var inspiration= esc(document.getElementById('f-inspiration').value);
+  var date       = esc(document.getElementById('f-date').value);
+  var location   = esc(document.getElementById('f-location').value);
+  var agenda     = esc(document.getElementById('f-agenda').value);
+  var showHeader = document.getElementById('show-header').checked;
+
+  var celebs   = getItems('celebrations-list');
+  var projects = getItems('projects-list');
+  var grants   = getItems('grants-list');
+  var helps    = getItems('help-list');
+
+  var celebHTML = celebs.map(function(c) {
+    return '<div class="nl-celeb"><span class="nl-celeb-name">' + esc(c.name) + ' &nbsp;·&nbsp; </span><span class="nl-celeb-text">' + esc(c.text) + '</span></div>';
+  }).join('');
+
+  var projectHTML = projects.map(function(p) {
+    return '<div class="nl-proj-title">' + esc(p.name) + '</div><div class="nl-proj-text">' + esc(p.text) + '</div>';
+  }).join('');
+
+  var grantHTML = grants.map(function(g) {
+    return '<div class="nl-col-item">' + esc(g.text) + '</div>';
+  }).join('');
+
+  var helpHTML = helps.map(function(h) {
+    return '<div class="nl-col-item">' + esc(h.text) + '</div>';
+  }).join('');
+
+  var headerHTML = showHeader ? `
+    <div class="nl-header">
+      <div class="nl-hdr-tag">Industrial Design &nbsp;·&nbsp; TU/E</div>
+      <div class="nl-hdr-title">RPM Research Community</div>
+      <div class="nl-hdr-sub">Monthly Newsletter &nbsp;·&nbsp; ${esc(month)}</div>
+    </div>` : '';
+
+  return `
+    ${headerHTML}
+    <div class="nl-intro">${intro}</div>
+
+    <div class="nl-divider"></div>
+    <div class="nl-section">
+      <div class="nl-label">🎉 &nbsp;Celebrations</div>
+      ${celebHTML}
+    </div>
+
+    <div class="nl-divider"></div>
+    <div class="nl-section">
+      <div class="nl-label">📋 &nbsp;Project Updates</div>
+      ${projectHTML}
+    </div>
+
+    <div class="nl-divider"></div>
+    <div class="nl-two-col">
+      <div>
+        <div class="nl-col-label">💰 &nbsp;Grant Corner</div>
+        ${grantHTML}
+      </div>
+      <div class="nl-col-div"></div>
+      <div>
+        <div class="nl-col-label">🤝 &nbsp;Looking for Help</div>
+        ${helpHTML}
+      </div>
+    </div>
+
+    <div class="nl-divider"></div>
+    <div class="nl-section">
+      <div class="nl-label">💡 &nbsp;Inspiration Drop</div>
+    </div>
+    <div class="nl-inspo-box">${inspiration}</div>
+
+    <div class="nl-meeting">
+      <div class="nl-mtg-label">📅 &nbsp;Next Meeting</div>
+      <div class="nl-mtg-date">${date}</div>
+      <div class="nl-mtg-loc">${location}</div>
+      <div class="nl-mtg-agenda">${agenda}</div>
+    </div>
+
+    <div class="nl-footer">RPM Research Community &nbsp;·&nbsp; Industrial Design, TU/e &nbsp;·&nbsp; ${esc(month)}</div>
+  `;
+}
+
+// ── Build email-safe HTML for copying ─────────────────────────────────────
+function buildEmailHTML() {
+  var month      = document.getElementById('f-month').value;
+  var intro      = esc(document.getElementById('f-intro').value);
+  var inspiration= esc(document.getElementById('f-inspiration').value);
+  var date       = esc(document.getElementById('f-date').value);
+  var location   = esc(document.getElementById('f-location').value);
+  var agenda     = esc(document.getElementById('f-agenda').value);
+  var showHeader = document.getElementById('show-header').checked;
+
+  var celebs   = getItems('celebrations-list');
+  var projects = getItems('projects-list');
+  var grants   = getItems('grants-list');
+  var helps    = getItems('help-list');
+
+  var headerRow = showHeader ? `<tr><td bgcolor="#1a3a5c" style="padding:36px 40px 28px 40px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding-bottom:10px;"><font face="Arial,sans-serif" size="2" color="#7aaedb">INDUSTRIAL DESIGN &nbsp;·&nbsp; TU/E</font></td></tr>
+<tr><td style="padding-bottom:6px;"><h1 style="margin:0;padding:0;font-family:Arial,sans-serif;font-size:26px;font-weight:bold;color:#ffffff;line-height:1.2;">RPM Research Community</h1></td></tr>
+<tr><td><font face="Arial,sans-serif" size="3" color="#a8cce8">Monthly Newsletter &nbsp;·&nbsp; ${esc(month)}</font></td></tr>
+</table></td></tr>` : '';
+
+  var celebRows = celebs.map(function(c, i) {
+    var spacer = i > 0 ? '<tr><td style="font-size:6px;line-height:6px;">&nbsp;</td></tr>' : '';
+    return spacer + '<tr><td bgcolor="#f0f7ff" style="border-left:3px solid #2e75b6;padding:12px 16px;">'
+      + '<font face="Arial,sans-serif" color="#1a3a5c" style="font-size:14px;"><strong>' + esc(c.name) + ' &nbsp;&middot;&nbsp; </strong></font>'
+      + '<font face="Arial,sans-serif" color="#333333" style="font-size:14px;">' + esc(c.text) + '</font>'
+      + '</td></tr>';
+  }).join('');
+
+  var projectRows = projects.map(function(p) {
+    return '<tr><td style="padding-bottom:16px;">'
+      + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+      + '<tr><td style="padding-bottom:4px;"><font face="Arial,sans-serif" color="#1a3a5c" style="font-size:14px;"><strong>' + esc(p.name) + '</strong></font></td></tr>'
+      + '<tr><td><font face="Georgia,serif" color="#555555" style="font-size:14px;line-height:1.6;">' + esc(p.text) + '</font></td></tr>'
+      + '</table></td></tr>';
+  }).join('');
+
+  var grantItems = grants.map(function(g) {
+    return '<tr><td style="padding-bottom:8px;"><font face="Arial,sans-serif" color="#444444" style="font-size:13px;line-height:1.6;">' + esc(g.text) + '</font></td></tr>';
+  }).join('');
+
+  var helpItems = helps.map(function(h) {
+    return '<tr><td style="padding-bottom:8px;"><font face="Arial,sans-serif" color="#444444" style="font-size:13px;line-height:1.6;">' + esc(h.text) + '</font></td></tr>';
+  }).join('');
+
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f0f4f8"><tr><td align="center" style="padding:32px 16px;">
+<table width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff">
+${headerRow}
+<tr><td style="padding:28px 40px 0 40px;">
+<font face="Georgia,serif" color="#333333" style="font-size:15px;line-height:1.7;">${intro}</font>
+</td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding-bottom:14px;"><font face="Arial,sans-serif" color="#1a3a5c" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;"><strong>&#127881; &nbsp;Celebrations</strong></font></td></tr>
+${celebRows}
+</table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding-bottom:14px;"><font face="Arial,sans-serif" color="#1a3a5c" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;"><strong>&#128203; &nbsp;Project Updates</strong></font></td></tr>
+${projectRows}
+</table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr valign="top">
+<td width="48%"><table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding-bottom:12px;"><font face="Arial,sans-serif" color="#1a3a5c" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;"><strong>&#128176; &nbsp;Grant Corner</strong></font></td></tr>
+${grantItems}
+</table></td>
+<td width="4%" style="border-left:1px solid #e2e8f0;">&nbsp;</td>
+<td width="48%" style="padding-left:16px;"><table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding-bottom:12px;"><font face="Arial,sans-serif" color="#1a3a5c" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;"><strong>&#129309; &nbsp;Looking for Help</strong></font></td></tr>
+${helpItems}
+</table></td>
+</tr></table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;"><font face="Arial,sans-serif" color="#1a3a5c" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;"><strong>&#128161; &nbsp;Inspiration Drop</strong></font></td></tr>
+<tr><td style="padding:8px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td bgcolor="#fffbf0" style="border:1px solid #f0e0a0;padding:16px 20px;">
+<font face="Georgia,serif" color="#333333" style="font-size:14px;line-height:1.7;">${inspiration}</font>
+</td></tr></table></td></tr>
+
+<tr><td style="padding:24px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+<tr><td style="padding:24px 40px 32px 40px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding-bottom:14px;"><font face="Arial,sans-serif" color="#1a3a5c" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;"><strong>&#128197; &nbsp;Next Meeting</strong></font></td></tr>
+<tr><td bgcolor="#1a3a5c" style="padding:16px 24px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding-bottom:4px;"><font face="Arial,sans-serif" color="#ffffff" style="font-size:15px;font-weight:bold;"><strong>${date}</strong></font></td></tr>
+<tr><td style="padding-bottom:10px;"><font face="Arial,sans-serif" color="#a8cce8" style="font-size:13px;">${location}</font></td></tr>
+<tr><td><font face="Arial,sans-serif" color="#d0e8ff" style="font-size:13px;line-height:1.6;">${agenda}</font></td></tr>
+</table></td></tr>
+</table></td></tr>
+
+<tr><td bgcolor="#f7f9fc" style="border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;">
+<font face="Arial,sans-serif" color="#999999" style="font-size:11px;">RPM Research Community &nbsp;&middot;&nbsp; Industrial Design, TU/e &nbsp;&middot;&nbsp; ${esc(month)}</font>
+</td></tr>
+
+</table></td></tr></table>`;
+}
+
+// ── Update preview ─────────────────────────────────────────────────────────
+function update() {
+  document.getElementById('preview-frame').innerHTML = buildPreview();
+}
+
+// ── Copy to clipboard ──────────────────────────────────────────────────────
+function copyNewsletter() {
+  var html = buildEmailHTML();
+  var blob = new Blob([html], { type: 'text/html' });
+  var item = new ClipboardItem({ 'text/html': blob });
+  navigator.clipboard.write([item]).then(function() {
+    var btn = document.querySelector('.copy-btn');
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = 'Copy newsletter';
+      btn.classList.remove('copied');
+    }, 2500);
+  }).catch(function() {
+    // Fallback: create a hidden div, select it, copy
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    div.style.position = 'fixed';
+    div.style.left = '-9999px';
+    document.body.appendChild(div);
+    var range = document.createRange();
+    range.selectNodeContents(div);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+    document.body.removeChild(div);
+    var btn = document.querySelector('.copy-btn');
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = 'Copy newsletter';
+      btn.classList.remove('copied');
+    }, 2500);
+  });
+}
+
+// ── Export as image ────────────────────────────────────────────────────────
+function exportImage() {
+  var btn = document.querySelector('.img-btn');
+  btn.textContent = '⏳ Rendering…';
+  btn.classList.add('working');
+
+  var month = document.getElementById('f-month').value || 'newsletter';
+  var exportWidth = parseInt(document.getElementById('export-width').value) || 1200;
+
+  // Build a fresh render container at exactly the export width, off-screen
+  var container = document.createElement('div');
+  container.style.cssText = [
+    'position:fixed',
+    'top:0',
+    'left:' + (-exportWidth * 2) + 'px',
+    'width:' + exportWidth + 'px',
+    'background:#f0f4f8',
+    'padding:40px',
+    'box-sizing:border-box',
+    'z-index:-1'
+  ].join(';');
+
+  // Inner card matching preview-frame styles
+  var card = document.createElement('div');
+  card.style.cssText = [
+    'background:#ffffff',
+    'border-radius:4px',
+    'overflow:hidden',
+    'width:100%',
+    'box-shadow:0 4px 32px rgba(0,0,0,0.12)'
+  ].join(';');
+
+  // Copy the current preview HTML into the card
+  card.innerHTML = document.getElementById('preview-frame').innerHTML;
+
+  // Re-apply all the preview CSS classes inline so html2canvas picks them up
+  var styleEl = document.createElement('style');
+  styleEl.textContent = document.querySelector('style').textContent;
+  container.appendChild(styleEl);
+  container.appendChild(card);
+  document.body.appendChild(container);
+
+  html2canvas(card, {
+    scale: 1,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    width: exportWidth - 80,   // subtract padding
+    windowWidth: exportWidth
+  }).then(function(canvas) {
+    var link = document.createElement('a');
+    link.download = 'rpm-newsletter-' + month.toLowerCase().replace(/\s+/g, '-') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    document.body.removeChild(container);
+    btn.textContent = '⬇ Save as image';
+    btn.classList.remove('working');
+  }).catch(function(err) {
+    console.error(err);
+    document.body.removeChild(container);
+    btn.textContent = '⬇ Save as image';
+    btn.classList.remove('working');
+  });
+}
+
+// ── Seed initial data ──────────────────────────────────────────────────────
+addItem('celebrations-list', celebTemplate, 'Sofia Martens', 'Paper accepted at DIS 2025 — "Designing for Adherence in Home-Based Cardiac Monitoring." Congrats Sofia!');
+addItem('celebrations-list', celebTemplate, 'Daan Verwijk', 'Successfully defended his PhD proposal. The committee was enthusiastic about the RPM-in-daily-life framing. Next stop: data collection!');
+addItem('celebrations-list', celebTemplate, 'RPM Community', 'We crossed 20 members this month. Welcome to everyone who joined through the cardiology department.');
+
+addItem('projects-list', projectTemplate, 'HeartSense — Patient Experience Study', 'Recruitment is open — we are looking for heart failure patients with at least 3 months of RPM experience. The interview guide has been finalized and ethics approval came through last week. First interviews start mid-June.');
+addItem('projects-list', projectTemplate, 'DesignRPM — Clinician Co-design Sessions', 'Two co-design workshops completed with the cardiology team at Catharina Hospital. Key tension surfaced: clinicians want fewer alerts, patients want more feedback. Next session focuses on dashboard redesign concepts in July.');
+addItem('projects-list', projectTemplate, 'MONITOR-HF — Literature Review', 'Systematic review of RPM adoption barriers now covers 84 papers. Writing phase starts next week. If you have papers to add to the corpus, reach out to Lena before June 20.');
+
+addItem('grants-list', textTemplate, 'The NWO Open Competition deadline is July 14. Prof. van der Berg is coordinating a joint submission — if your project fits, contact her by June 25 to be included.');
+addItem('grants-list', textTemplate, 'ZonMw has opened a new call for digital health implementation research. Budget up to €300k. Deadline September. Details in the shared Drive folder.');
+
+addItem('help-list', textTemplate, 'Sofia is looking for 8–10 heart failure patients for remote interviews in June–July. Fluent Dutch or English. Contact her directly if you know anyone suitable.');
+addItem('help-list', textTemplate, 'Daan is looking for a clinician collaborator with experience in telemonitoring threshold-setting. Can anyone make an introduction?');
+
+update();
+</script>
+</body>
+</html>
